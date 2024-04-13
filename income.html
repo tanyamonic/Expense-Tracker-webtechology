@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Expense Tracker</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+
+  </head>
+  <body>
+    <h1>Expense Tracker</h1>
+
+    <main>
+      <header>
+        <div>
+          <h5>Total Balance</h5>
+          <span id="balance">₹0.00</span>
+        </div>
+        <div>
+          <h5>Income</h5>
+          <span id="income">₹0.00</span>
+        </div>
+        <div>
+          <h5>Expense</h5>
+          <span id="expense">₹0.00</span>
+        </div>
+      </header>
+
+      <section>
+        <h3>Transactions</h3>
+        <ul id="transactionList"></ul>
+        <div id="status"></div>
+      </section>
+
+      <section>
+        <h3>Add Transaction</h3>
+
+        <form id="transactionForm">
+          <div>
+            <label for="type">
+              <input type="checkbox" name="type" id="type" />
+              <div class="option">
+                <span>Expense</span>
+                <span>Income</span>
+              </div>
+            </label>
+          </div>
+          <div>
+            <label for="name">Name</label>
+            <input type="text" name="name" required />
+          </div>
+          <div>
+            <label for="amount">Amount</label>
+            <input
+              type="number"
+              name="amount"
+              value="0"
+              min="0.01"
+              step="0.01"
+              required
+            />
+          </div>
+          <div>
+            <label for="date">Date</label>
+            <input type="date" name="date" required />
+          </div>
+          <button type="submit">Submit</button>
+        </form>
+      </section>
+      <div id="sec1">
+        <section >
+            <h3>Chart</h3>
+            <canvas id="myChart"></canvas>
+        </section>
+        <section>
+            <h3>Transaction Distribution by Name</h3>
+            <canvas id="pieChart"></canvas>
+        </section>
+      </div>
+      <div id="sec2">
+        <section>
+            <h3>Monthly Expenditure</h3>
+            <canvas id="lineChart"></canvas>
+        </section>
+        <section id="budgetPlanning" style="margin-top: 50px;">
+            <h3>Budget Planning</h3>
+            <div>
+            <label for="savingsGoal">Set Monthly Savings Goal:</label>
+            <input type="number" id="savingsGoal" name="savingsGoal" min="1" step="1" required>
+            <button id="setGoalButton" onclick="setSavingsGoal()">Set Goal</button>
+            </div>
+            <p id="budgetRecommendations"></p>
+        </section>
+      </div>
+      
+      
+      
+      
+      
+    </main>
+
+    <script>
+
+    const transactions = JSON.parse(localStorage.getItem("transactions")) || [];
+
+    const formatter = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "INR",
+        signDisplay: "always",
+    });
+
+    const list = document.getElementById("transactionList");
+    const form = document.getElementById("transactionForm");
+    const status = document.getElementById("status");
+    const balance = document.getElementById("balance");
+    const income = document.getElementById("income");
+    const expense = document.getElementById("expense");
+
+    function setSavingsGoal() {
+  const savingsGoal = document.getElementById("savingsGoal").value;
+  localStorage.setItem("savingsGoal", savingsGoal);
+  provideBudgetRecommendations();
+}
+
+function provideBudgetRecommendations() {
+  const savingsGoal = localStorage.getItem("savingsGoal") || 0;
+  const totalIncome = transactions
+    .filter(trx => trx.type === "income")
+    .reduce((sum, trx) => sum + trx.amount, 0);
+  const totalExpense = transactions
+    .filter(trx => trx.type === "expense")
+    .reduce((sum, trx) => sum + trx.amount, 0);
+  const savings = totalIncome - totalExpense;
+
+  let recommendations = "Your budget recommendations will appear here.";
+  if (savingsGoal && totalIncome) {
+    if (savings >= savingsGoal) {
+      recommendations = `Great job! You've met your savings goal of ${formatter.format(savingsGoal)}. Keep it up!`;
+      launchFireworks(30);
+      
+    } else {
+      const remaining = savingsGoal - savings;
+      recommendations = `Your savings goal is ${formatter.format(savingsGoal)}. You need to save ${formatter.format(remaining)} more this month.`;
+    }
+  }
+  document.getElementById("budgetRecommendations").textContent = recommendations;
+}
+function launchFireworks(count) {
+  const colors = ['#FF6347', '#4682B4', '#FFD700', '#32CD32', '#FF69B4', '#00BFFF']; // Bright and varied color palette
+
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const firework = document.createElement('div');
+      firework.classList.add('firework');
+      firework.style.left = `${Math.random() * 100}%`;
+      firework.style.top = `${Math.random() * 100}%`;
+      firework.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      firework.style.boxShadow = `0 0 8px 2px ${firework.style.backgroundColor}`;
+      document.body.appendChild(firework);
+
+      setTimeout(() => {
+        firework.remove();
+      }, 700); // Matches animation duration
+    }, i * 100); // Stagger the launches
+  }
+}
+
+
+
+    let lineChart;
+
+    function renderLineChart() {
+  const ctx = document.getElementById('lineChart').getContext('2d');
+
+  // Aggregate expenses by month
+  let monthlyExpenses = {};
+  transactions.forEach(({ date, amount, type }) => {
+    if (type === "expense") {
+      const month = new Date(date).toLocaleString('default', { month: 'short', year: 'numeric' });
+      monthlyExpenses[month] = (monthlyExpenses[month] || 0) + amount;
+    }
+  });
+
+  const labels = Object.keys(monthlyExpenses);
+  const data = Object.values(monthlyExpenses);
+
+  const lineChartData = {
+    labels: labels,
+    datasets: [{
+      label: 'Monthly Expenditure',
+      data: data,
+      fill: false,
+      borderColor: 'rgb(75, 192, 192)',
+      tension: 0.1
+    }]
+  };
+
+  if (lineChart) {
+    lineChart.destroy();
+  }
+
+  lineChart = new Chart(ctx, {
+    type: 'line',
+    data: lineChartData,
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+
+
+    let pieChart;
+
+function renderPieChart() {
+  const ctx = document.getElementById('pieChart').getContext('2d');
+
+  // Group transactions by name and sum their amounts
+  const amountsByName = transactions.reduce((acc, {name, amount}) => {
+    acc[name] = (acc[name] || 0) + amount;
+    return acc;
+  }, {});
+
+  const data = {
+    labels: Object.keys(amountsByName),
+    datasets: [{
+      label: 'Transactions by Name',
+      data: Object.values(amountsByName),
+      backgroundColor: [
+        'rgba(255, 99, 132, 0.2)',
+        'rgba(54, 162, 235, 0.2)',
+        'rgba(255, 206, 86, 0.2)',
+        'rgba(75, 192, 192, 0.2)',
+        'rgba(153, 102, 255, 0.2)',
+        'rgba(255, 159, 64, 0.2)'
+      ],
+      borderColor: [
+        'rgba(255,99,132,1)',
+        'rgba(54, 162, 235, 1)',
+        'rgba(255, 206, 86, 1)',
+        'rgba(75, 192, 192, 1)',
+        'rgba(153, 102, 255, 1)',
+        'rgba(255, 159, 64, 1)'
+      ],
+      borderWidth: 1
+    }]
+  };
+
+  if (pieChart) {
+    pieChart.destroy();
+  }
+
+  pieChart = new Chart(ctx, {
+    type: 'pie',
+    data: data,
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'top',
+        },
+      }
+    },
+  });
+}
+
+
+    let myChart;
+
+    function renderChart() {
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const incomeTotal = transactions
+            .filter(trx => trx.type === "income")
+            .reduce((total, trx) => total + trx.amount, 0);
+        const expenseTotal = transactions
+            .filter(trx => trx.type === "expense")
+            .reduce((total, trx) => total + trx.amount, 0);
+
+        const data = {
+            labels: ['Income', 'Expense'],
+            datasets: [{
+                label: 'Transactions',
+                data: [incomeTotal, expenseTotal],
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.2)',
+                    'rgba(255, 99, 132, 0.2)'
+                ],
+                borderColor: [
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(255, 99, 132, 1)'
+                ],
+                borderWidth: 1
+            }]
+        };
+
+        if (myChart) {
+            myChart.destroy();
+        }
+
+        myChart = new Chart(ctx, {
+            type: 'bar',
+            data: data,
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    form.addEventListener("submit", addTransaction);
+
+    function updateTotal() {
+        const incomeTotal = transactions
+            .filter((trx) => trx.type === "income")
+            .reduce((total, trx) => total + trx.amount, 0);
+
+        const expenseTotal = transactions
+            .filter((trx) => trx.type === "expense")
+            .reduce((total, trx) => total + trx.amount, 0);
+
+        const balanceTotal = incomeTotal - expenseTotal;
+
+        balance.textContent = formatter.format(balanceTotal).substring(1);
+        income.textContent = formatter.format(incomeTotal);
+        expense.textContent = formatter.format(expenseTotal * -1);
+    }
+
+    function renderList() {
+        list.innerHTML = "";
+        status.textContent = "";
+        if (transactions.length === 0) {
+            status.textContent = "No transactions.";
+            return;
+        }
+
+        transactions.forEach(({ id, name, amount, date, type }) => {
+            const sign = "income" === type ? 1 : -1;
+            const li = document.createElement("li");
+
+            li.innerHTML = `
+                <div class="name">
+                    <h4>${name}</h4>
+                    <p>${new Date(date).toLocaleDateString()}</p>
+                </div>
+
+                <div class="amount ${type}">
+                    <span>${formatter.format(amount * sign)}</span>
+                </div>
+            
+                <div class="action">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" onclick="deleteTransaction(${id})">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            `;
+
+            list.appendChild(li);
+        });
+        renderChart();
+        renderPieChart();
+        renderLineChart();
+        provideBudgetRecommendations();
+
+    }
+
+    function deleteTransaction(id) {
+        const index = transactions.findIndex((trx) => trx.id === id);
+        transactions.splice(index, 1);
+
+        updateTotal();
+        saveTransactions();
+        renderList();
+        renderChart();
+        renderPieChart();
+        renderLineChart();
+        provideBudgetRecommendations();
+
+    }
+
+    function addTransaction(e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+
+        transactions.push({
+            id: transactions.length + 1,
+            name: formData.get("name"),
+            amount: parseFloat(formData.get("amount")),
+            date: new Date(formData.get("date")),
+            type: "on" === formData.get("type") ? "income" : "expense",
+        });
+
+        this.reset();
+
+        updateTotal();
+        saveTransactions();
+        renderList();
+        renderChart();
+        renderPieChart();
+        renderLineChart();
+        provideBudgetRecommendations();
+
+    }
+
+    function saveTransactions() {
+        transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        localStorage.setItem("transactions", JSON.stringify(transactions));
+    }
+
+    renderList();
+    updateTotal();
+    renderChart();
+    renderLineChart();
+    provideBudgetRecommendations();
+
+</script>
+
+
+
+    
+  </body>
+</html>
